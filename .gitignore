@@ -1,0 +1,59 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+cmake_install.cmake
+compile_commands.json
+install_manifest.txt
+Testing/
+
+# Native build outputs
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.o
+*.obj
+*.lo
+*.la
+*.lai
+*.lib
+*.pdb
+
+# Generated dependency files
+*.d
+
+# Test and coverage output
+*.gcda
+*.gcno
+*.gcov
+coverage/
+lcov.info
+
+# Runtime/log output
+*.log
+*.tmp
+*.swp
+*.swo
+core
+core.*
+
+# IDE/editor local state
+.idea/
+.vscode/
+*.user
+*.suo
+*.vcxproj.user
+.cache/
+.ccls-cache/
+.clangd/
+
+# Local assistant/tool state
+.claude/settings.local.json
