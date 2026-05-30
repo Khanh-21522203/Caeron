@@ -82,6 +82,22 @@ MemoryMappedFile& MemoryMappedFile::operator=(MemoryMappedFile&& other) noexcept
     return *this;
 }
 
+void MemoryMappedFile::pre_touch()
+{
+    if (!addr_ || size_ <= 0) return;
+
+    // Get the system page size (typically 4096 bytes)
+    const auto page_size = ::sysconf(_SC_PAGESIZE);
+
+    // Touch one byte per page to force allocation.
+    // volatile prevents the compiler from optimizing this away.
+    auto* p = static_cast<volatile std::byte*>(addr_);
+    for (i64 offset = 0; offset < size_; offset += page_size)
+    {
+        p[offset] = std::byte{0};
+    }
+}
+
 MemoryMappedFile::MemoryMappedFile(void* addr, i64 size, bool owns_file, std::string path)
     : addr_{addr}, size_{size}, owns_file_{owns_file}, path_{std::move(path)}
 {}

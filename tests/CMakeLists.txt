@@ -5,4 +5,4 @@ add_subdirectory(protocol)
 # add_subdirectory(logbuffer)  # populated after logbuffer is written
 # add_subdirectory(cnc)        # populated after cnc is written
 # add_subdirectory(driver)     # populated after driver is written
-# add_subdirectory(platform)   # populated after platform is written
+add_subdirectory(platform)

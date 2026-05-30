@@ -1,5 +1,6 @@
 #include "udp_socket.h"
 
+#include <cstring>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -101,6 +102,16 @@ void UdpSocket::set_rcvbuf(i32 size)
     ::setsockopt(fd_, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
 }
 
+void UdpSocket::set_busy_loop(i32 microseconds)
+{
+    if (::setsockopt(fd_, SOL_SOCKET, SO_BUSY_POLL,
+                     &microseconds, sizeof(microseconds)) < 0)
+    {
+        // Not fatal — some kernels don't support it. Log and continue.
+        // In production, you'd check errno == ENOPROTOOPT.
+    }
+}
+
 void UdpSocket::join_multicast(const std::string& group, const std::string& iface)
 {
     struct ip_mreq mreq{};
@@ -117,6 +128,80 @@ void UdpSocket::leave_multicast(const std::string& group, const std::string& ifa
     if (!iface.empty())
         ::inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface);
     ::setsockopt(fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+}
+
+i32 UdpSocket::send_mmsg(const std::vector<SendMsg>& messages)
+{
+    std::vector<sockaddr_in> addresses(messages.size());
+    std::vector<iovec> iovecs(messages.size());
+    std::vector<mmsghdr> mmsghdrs(messages.size());
+
+    for (size_t i = 0; i < messages.size(); ++i)
+    {
+        // Fill the destination address
+        auto& addr = addresses[i];
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(messages[i].port);
+        ::inet_pton(AF_INET, messages[i].address.c_str(), &addr.sin_addr);
+
+        // Fill the iovec (pointer to data + length)
+        iovecs[i].iov_base = const_cast<void*>(messages[i].data);
+        iovecs[i].iov_len  = static_cast<size_t>(messages[i].length);
+
+        // Fill the mmsghdr (link address + iovec)
+        auto& hdr = mmsghdrs[i];
+        std::memset(&hdr, 0, sizeof(hdr));
+        hdr.msg_hdr.msg_name    = &addresses[i];
+        hdr.msg_hdr.msg_namelen = sizeof(addresses[i]);
+        hdr.msg_hdr.msg_iov     = &iovecs[i];
+        hdr.msg_hdr.msg_iovlen  = 1;
+    }
+
+    auto sent = ::sendmmsg(fd_, mmsghdrs.data(),
+        static_cast<unsigned>(messages.size()), 0);
+    return sent;
+}
+
+i32 UdpSocket::recv_mmsg(std::vector<RecvMsg>& messages)
+{
+    std::vector<sockaddr_in> addresses(messages.size());
+    std::vector<iovec> iovecs(messages.size());
+    std::vector<mmsghdr> mmsghdrs(messages.size());
+
+    for (size_t i = 0; i < messages.size(); ++i)
+    {
+        // iovec points to the receive buffer
+        iovecs[i].iov_base = messages[i].buffer;
+        iovecs[i].iov_len  = static_cast<size_t>(messages[i].buffer_length);
+
+        // mmsghdr links the iovec + space for source address
+        auto& hdr = mmsghdrs[i];
+        std::memset(&hdr, 0, sizeof(hdr));
+        hdr.msg_hdr.msg_name    = &addresses[i];
+        hdr.msg_hdr.msg_namelen = sizeof(addresses[i]);
+        hdr.msg_hdr.msg_iov     = &iovecs[i];
+        hdr.msg_hdr.msg_iovlen  = 1;
+    }
+
+    // MSG_DONTWAIT = non-blocking
+    auto received = ::recvmmsg(fd_, mmsghdrs.data(),
+                               static_cast<unsigned>(messages.size()),
+                               MSG_DONTWAIT, nullptr);
+    if (received < 0)
+        return received;
+
+    for (ssize_t i = 0; i < received; ++i)
+    {
+        messages[i].received_length = static_cast<i32>(mmsghdrs[i].msg_len);
+
+        char ip[INET_ADDRSTRLEN];
+        ::inet_ntop(AF_INET, &addresses[i].sin_addr, ip, sizeof(ip));
+        messages[i].from_address = ip;
+        messages[i].from_port = ntohs(addresses[i].sin_port);
+    }
+
+    return received;
 }
 
 void UdpSocket::close()

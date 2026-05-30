@@ -36,6 +36,8 @@ public:
     [[nodiscard]] void* addr() noexcept { return addr_; }
     [[nodiscard]] i64 size() const noexcept { return size_; }
 
+    void pre_touch();
+
 private:
     MemoryMappedFile(void* addr, i64 size, bool owns_file, std::string path);
     void unmap();
