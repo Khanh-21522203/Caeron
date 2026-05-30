@@ -7,6 +7,7 @@
 #include <memory>
 #include <new>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 namespace caeron::concurrent {
@@ -17,7 +18,7 @@ namespace caeron::concurrent {
 /// indices. Only one thread may call enqueue, and only one thread may call
 /// dequeue.
 ///
-/// Template parameter T must be default-constructible and movable.
+/// Template parameter T must be movable. Slots are left uninitialized until enqueued.
 template <typename T>
 class OneToOneConcurrentArrayQueue
 {
@@ -30,13 +31,10 @@ public:
         capacity_ = static_cast<i32>(std::bit_ceil(static_cast<u32>(capacity)));
         mask_ = capacity_ - 1;
 
-        // Allocate with proper alignment for T.
+        // Allocate raw storage with proper alignment for T.
+        // Slots are left uninitialized — enqueue placement-news, try_dequeue destroys.
         storage_ = static_cast<T*>(::operator new(sizeof(T) * static_cast<size_t>(capacity_),
                                                    std::align_val_t{alignof(T)}));
-
-        // Default-construct each slot.
-        for (i32 i = 0; i < capacity_; ++i)
-            new (storage_ + i) T{};
     }
 
     ~OneToOneConcurrentArrayQueue()
@@ -69,7 +67,11 @@ public:
         if (tail - head >= capacity_)
             return false;
 
-        storage_[tail & mask_] = std::move(value);
+        T* slot = &storage_[tail & mask_];
+        // Placement-new directly. Slots are raw uninitialized storage — no prior
+        // object exists to destroy. After the first enqueue/dequeue cycle, slots
+        // are either initialized (enqueued) or destroyed (dequeued).
+        ::new (slot) T(std::move(value));
         tail_.store(tail + 1, std::memory_order_release);
 
         return true;
@@ -86,9 +88,11 @@ public:
         if (head == tail)
             return false;
 
-        out = std::move(storage_[head & mask_]);
-        // Re-construct a default T in the slot so it stays in a valid state.
-        new (storage_ + (head & mask_)) T{};
+        T* slot = &storage_[head & mask_];
+        out = std::move(*slot);
+        if constexpr (!std::is_trivially_destructible_v<T>)
+            std::destroy_at(slot);
+
         head_.store(head + 1, std::memory_order_release);
 
         return true;
@@ -112,10 +116,11 @@ private:
     i32 mask_ = 0;
 
     // Align head and tail to separate cache lines to avoid false sharing.
-    alignas(std::hardware_destructive_interference_size)
-        std::atomic<i32> head_{0};
-    alignas(std::hardware_destructive_interference_size)
-        std::atomic<i32> tail_{0};
+    // Using 64 bytes (typical cache line) instead of hardware_destructive_interference_size
+    // to avoid compiler warnings about ABI instability.
+    static constexpr std::size_t CACHE_LINE = 64;
+    alignas(CACHE_LINE) std::atomic<i32> head_{0};
+    alignas(CACHE_LINE) std::atomic<i32> tail_{0};
 };
 
 } // namespace caeron::concurrent

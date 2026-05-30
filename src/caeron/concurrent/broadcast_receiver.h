@@ -47,14 +47,26 @@ public:
     {
         const i64 tail = buffer_.get_i64_ordered(TAIL_POSITION_OFFSET);
         i64 next_tail = tail_;
+
+        // Lapped-reader detection: if the transmitter has overwritten data we haven't
+        // read, fast-forward past the lost region. This is the lossy behavior inherent
+        // in the single-head broadcast design.
+        if (tail - next_tail > capacity_)
+            next_tail = tail - capacity_;
+
         i32 messages_received = 0;
         i32 index = static_cast<i32>(next_tail & mask_);
 
         while (next_tail < tail)
         {
-            const i32 record_length = buffer_.get_i32_ordered(index);
+            // index is offset within data region; add HEADER_LENGTH for absolute offset.
+            const i32 offset = HEADER_LENGTH + index;
+            const i32 record_length = buffer_.get_i32_ordered(offset);
 
-            if (record_length <= 0)
+            if (record_length == 0)
+                break; // Unpublished record — transmitter hasn't written yet.
+
+            if (record_length < 0)
             {
                 // Padding record: skip to start of buffer.
                 next_tail = (next_tail - index) + capacity_;
@@ -62,11 +74,14 @@ public:
                 continue;
             }
 
-            const i32 msg_type_id = buffer_.get_i32(index + SIZE_OF_INT);
+            if (record_length > capacity_)
+                throw std::runtime_error("corrupt broadcast record: length exceeds capacity");
+
+            const i32 msg_type_id = buffer_.get_i32(offset + SIZE_OF_INT);
             const i32 msg_length = record_length - MSG_HEADER_LENGTH;
 
             handler(msg_type_id,
-                    reinterpret_cast<const std::byte*>(buffer_.data()) + index + MSG_HEADER_LENGTH,
+                    reinterpret_cast<const std::byte*>(buffer_.data()) + offset + MSG_HEADER_LENGTH,
                     msg_length);
 
             next_tail += align(record_length + SIZE_OF_INT, SIZE_OF_INT);
@@ -75,11 +90,17 @@ public:
         }
 
         tail_ = next_tail;
+
+        // Publish consumed position so transmitter knows available space.
+        if (messages_received > 0)
+            buffer_.put_i64_ordered(HEAD_POSITION_OFFSET, next_tail);
+
         return messages_received;
     }
 
 private:
     static constexpr i32 TAIL_POSITION_OFFSET = 0;
+    static constexpr i32 HEAD_POSITION_OFFSET = SIZE_OF_LONG; // 8
 
     UnsafeBuffer buffer_;
     i32 capacity_ = 0;

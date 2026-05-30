@@ -3,6 +3,8 @@
 #include "unsafe_buffer.h"
 #include "counters_manager.h"
 
+#include <cassert>
+
 namespace caeron::concurrent {
 
 /// Atomic operations on a single counter value slot in shared memory.
@@ -12,11 +14,13 @@ namespace caeron::concurrent {
 class AtomicCounter
 {
 public:
-    AtomicCounter(i32 counter_id, UnsafeBuffer& values_buffer) noexcept
+    AtomicCounter(i32 counter_id, UnsafeBuffer& values_buffer)
         : values_buffer_{values_buffer}
         , counter_id_{counter_id}
         , offset_{CountersManager::counter_offset(counter_id)}
-    {}
+    {
+        assert(offset_ >= 0 && offset_ + CountersManager::COUNTER_LENGTH <= values_buffer_.capacity());
+    }
 
     [[nodiscard]] i32 id() const noexcept { return counter_id_; }
 

@@ -7,8 +7,16 @@ namespace caeron::concurrent {
 
 /// Single-Producer broadcast transmitter.
 ///
+/// DESIGN NOTE: This is a lossy broadcast. A single shared head position is used
+/// for backpressure. A fast receiver can publish head progress that frees capacity
+/// for the transmitter to overwrite data that a slow receiver hasn't read yet.
+/// This matches Aeron's design — the to-clients broadcast buffer is used for
+/// non-critical status/response messages where loss is acceptable.
+///
 /// Memory layout:
-///   [0, 64)  - tail counter (i64, cache-line padded)
+///   [0, 8)   - tail counter (i64, written by transmitter)
+///   [8, 16)  - head counter (i64, written by receiver)
+///   [16, 64) - reserved (cache-line padding)
 ///   [64, ..) - buffer data
 ///
 /// Each record:
@@ -45,6 +53,8 @@ public:
     {
         if (msg_type_id == PADDING_MSG_TYPE_ID)
             throw std::invalid_argument("msg_type_id must not equal PADDING_MSG_TYPE_ID");
+        if (length < 0)
+            throw std::invalid_argument("message length must be non-negative");
 
         const i32 record_length = MSG_HEADER_LENGTH + length;
         const i32 required_capacity = align(record_length + SIZE_OF_INT, SIZE_OF_INT);
@@ -83,20 +93,23 @@ public:
 
 private:
     static constexpr i32 TAIL_POSITION_OFFSET = 0;
+    static constexpr i32 HEAD_POSITION_OFFSET = SIZE_OF_LONG; // 8
 
     void put_record(i32 index, i32 record_length,
                     i32 msg_type_id, const void* src, i32 length) noexcept
     {
-        if (length > 0 && src != nullptr)
-            buffer_.put_bytes(index + MSG_HEADER_LENGTH, src, length);
+        const i32 offset = HEADER_LENGTH + index;
 
-        buffer_.put_i32(index + SIZE_OF_INT, msg_type_id);
-        buffer_.put_i32_ordered(index, record_length);
+        if (length > 0 && src != nullptr)
+            buffer_.put_bytes(offset + MSG_HEADER_LENGTH, src, length);
+
+        buffer_.put_i32(offset + SIZE_OF_INT, msg_type_id);
+        buffer_.put_i32_ordered(offset, record_length);
     }
 
     void put_padding_record(i32 index, i32 to_buffer_end) noexcept
     {
-        buffer_.put_i32_ordered(index, -to_buffer_end);
+        buffer_.put_i32_ordered(HEADER_LENGTH + index, -to_buffer_end);
     }
 
     UnsafeBuffer buffer_;

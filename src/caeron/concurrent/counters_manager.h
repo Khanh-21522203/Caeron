@@ -3,6 +3,7 @@
 #include "unsafe_buffer.h"
 #include "caeron/common/bit_util.h"
 
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <stdexcept>
@@ -64,6 +65,8 @@ public:
     i32 allocate(i32 type_id, const u8* key, i32 key_length,
                  const char* label, i32 label_length)
     {
+        if (type_id == FREE || type_id == NOT_FREE)
+            throw std::invalid_argument("type_id must not be FREE (0) or NOT_FREE (-1)");
         if (key_length < 0 || label_length < 0)
             throw std::invalid_argument("key_length and label_length must be non-negative");
 
@@ -107,16 +110,9 @@ public:
         values_buffer_.put_i64_volatile(counter_id * COUNTER_LENGTH, 0);
     }
 
-    /// Get a mutable reference to the counter value (direct memory access).
-    [[nodiscard]] i64& get_counter_value(i32 counter_id)
-    {
-        validate_counter_id(counter_id);
-        auto* ptr = reinterpret_cast<i64*>(values_buffer_.data() +
-                                            counter_id * COUNTER_LENGTH);
-        return *ptr;
-    }
-
     /// Get the counter value (const).
+    /// Uses volatile load for atomic read access. For atomic RMW operations,
+    /// use AtomicCounter which wraps the same memory location.
     [[nodiscard]] i64 get_counter_value(i32 counter_id) const
     {
         validate_counter_id(counter_id);
@@ -131,11 +127,43 @@ public:
     }
 
     /// Get the type ID of a counter slot.
+    /// Uses acquire semantics to synchronize with the release store in allocate().
     [[nodiscard]] i32 get_type_id(i32 counter_id) const
     {
         validate_counter_id(counter_id);
-        return metadata_buffer_.get_i32_volatile(
+        return metadata_buffer_.get_i32_ordered(
             counter_id * metadata_slot_size_ + METADATA_TYPE_ID_OFFSET);
+    }
+
+    /// Get the key bytes for a counter slot.
+    /// Returns the number of bytes copied into dst (up to dst_length).
+    [[nodiscard]] i32 get_key(i32 counter_id, u8* dst, i32 dst_length) const
+    {
+        validate_counter_id(counter_id);
+        const i32 slot_offset = counter_id * metadata_slot_size_;
+        const i32 key_length = metadata_buffer_.get_i32(
+            slot_offset + METADATA_KEY_LENGTH_OFFSET);
+        const i32 copy_len = std::min(key_length, dst_length);
+        if (copy_len > 0 && dst != nullptr)
+            metadata_buffer_.get_bytes(slot_offset + METADATA_KEY_OFFSET, dst, copy_len);
+        return key_length;
+    }
+
+    /// Get the label for a counter slot.
+    /// Returns the number of bytes copied into dst (up to dst_length).
+    [[nodiscard]] i32 get_label(i32 counter_id, char* dst, i32 dst_length) const
+    {
+        validate_counter_id(counter_id);
+        const i32 slot_offset = counter_id * metadata_slot_size_;
+        const i32 key_length = metadata_buffer_.get_i32(
+            slot_offset + METADATA_KEY_LENGTH_OFFSET);
+        const i32 label_length = metadata_buffer_.get_i32(
+            slot_offset + METADATA_LABEL_LENGTH_OFFSET);
+        const i32 copy_len = std::min(label_length, dst_length);
+        if (copy_len > 0 && dst != nullptr)
+            metadata_buffer_.get_bytes(slot_offset + METADATA_KEY_OFFSET + key_length,
+                                       dst, copy_len);
+        return label_length;
     }
 
     /// Iterate over all allocated counters. Calls handler(counter_id, type_id)
@@ -145,9 +173,11 @@ public:
     {
         for (i32 i = 0; i < max_counter_id_; ++i)
         {
-            const i32 type_id = metadata_buffer_.get_i32_volatile(
+            // Acquire load to synchronize with the release store in allocate().
+            const i32 type_id = metadata_buffer_.get_i32_ordered(
                 i * metadata_slot_size_ + METADATA_TYPE_ID_OFFSET);
-            if (type_id != FREE)
+            // Skip FREE (0) and NOT_FREE (-1, in-progress allocation).
+            if (type_id > 0)
                 handler(i, type_id);
         }
     }

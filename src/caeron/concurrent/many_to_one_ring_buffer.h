@@ -62,6 +62,8 @@ public:
     {
         if (msg_type_id == PADDING_MSG_TYPE_ID)
             throw std::invalid_argument("msg_type_id must not equal PADDING_MSG_TYPE_ID");
+        if (length < 0)
+            throw std::invalid_argument("message length must be non-negative");
 
         const i32 record_length = MSG_HEADER_LENGTH + length;
         if (record_length > max_msg_length_)
@@ -136,29 +138,48 @@ public:
 
         while (next_head < current_tail)
         {
-            const i32 record_length = buffer_.get_i32_ordered(head_index);
+            // head_index is offset within data region; add HEADER_LENGTH for absolute offset.
+            const i32 offset = HEADER_LENGTH + head_index;
+            const i32 record_length = buffer_.get_i32_ordered(offset);
 
-            if (record_length <= 0)
+            if (record_length == 0)
+                break; // Unpublished record — producer CAS'd tail but hasn't written yet.
+
+            if (record_length < 0)
             {
-                // Padding record: skip to the start of the buffer.
+                // Padding record: clear it to prevent stale negative length after wrap-around.
+                buffer_.put_i32_ordered(offset, 0);
+                // Skip to the start of the buffer.
                 next_head = (next_head - head_index) + capacity_;
                 head_index = 0;
                 continue;
             }
 
-            const i32 msg_type_id = buffer_.get_i32(head_index + SIZE_OF_INT);
+            if (record_length > max_msg_length_)
+                throw std::runtime_error("corrupt ring buffer record: length exceeds max");
+
+            const i32 msg_type_id = buffer_.get_i32(offset + SIZE_OF_INT);
             const i32 msg_length = record_length - MSG_HEADER_LENGTH;
 
             handler(msg_type_id,
-                    reinterpret_cast<const std::byte*>(buffer_.data()) + head_index + MSG_HEADER_LENGTH,
+                    reinterpret_cast<const std::byte*>(buffer_.data()) + offset + MSG_HEADER_LENGTH,
                     msg_length);
+
+            // Clear consumed record length to prevent stale data after wrap-around.
+            // Without this, a reused slot (producer CAS'd tail but hasn't written yet)
+            // would contain the old positive length, and the consumer would read garbage.
+            buffer_.put_i32_ordered(offset, 0);
 
             next_head += align(record_length + SIZE_OF_INT, SIZE_OF_INT);
             head_index = static_cast<i32>(next_head & mask_);
             ++messages_read;
         }
 
-        if (messages_read > 0)
+        // Publish head progress whenever we advanced, even if no messages were delivered.
+        // This prevents the consumer from getting stuck when it clears padding but the
+        // wrapped record hasn't been published yet (record_length == 0). Without this,
+        // the next read would restart at the old head (now zeroed padding) and loop forever.
+        if (next_head != head)
         {
             buffer_.put_i64_ordered(HEAD_POSITION_OFFSET, next_head);
         }
@@ -173,22 +194,25 @@ private:
     void put_msg_header_and_body(i32 index, i32 record_length,
                                  i32 msg_type_id, const void* src, i32 length) noexcept
     {
+        // index is offset within data region; add HEADER_LENGTH for absolute buffer offset.
+        const i32 offset = HEADER_LENGTH + index;
+
         // Zero out the body portion.
-        buffer_.set_memory(index + MSG_HEADER_LENGTH, record_length - MSG_HEADER_LENGTH, 0);
+        buffer_.set_memory(offset + MSG_HEADER_LENGTH, record_length - MSG_HEADER_LENGTH, 0);
 
         if (length > 0 && src != nullptr)
-            buffer_.put_bytes(index + MSG_HEADER_LENGTH, src, length);
+            buffer_.put_bytes(offset + MSG_HEADER_LENGTH, src, length);
 
         // Write type_id.
-        buffer_.put_i32(index + SIZE_OF_INT, msg_type_id);
+        buffer_.put_i32(offset + SIZE_OF_INT, msg_type_id);
         // Write length last (release semantics) to publish the message.
-        buffer_.put_i32_ordered(index, record_length);
+        buffer_.put_i32_ordered(offset, record_length);
     }
 
     void put_padding_record(i32 index, i32 to_buffer_end) noexcept
     {
         // Negative length signals padding. The reader will skip to buffer start.
-        buffer_.put_i32_ordered(index, -to_buffer_end);
+        buffer_.put_i32_ordered(HEADER_LENGTH + index, -to_buffer_end);
     }
 
     UnsafeBuffer buffer_;

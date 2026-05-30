@@ -58,19 +58,19 @@ The foundational scaffold is complete. All libraries compile, all tests pass.
 
 ---
 
-## Phase 1: Platform Layer Completion
+## Phase 1: Platform Layer Completion ✅
 
 Make the platform layer fully functional.
 
 | Step | Description | Java Source | Status |
 |------|-------------|-------------|--------|
-| 1.1 | `UdpSocket`: bind, connect, send_to, receive_from, multicast join/leave, non-blocking, socket options (SO_RCVBUF, SO_SNDBUF, IP_MULTICAST_TTL, IP_MULTICAST_IF, SO_BUSY_POLL, SO_PREFER_BUSY_POLL) | `media/UdpChannelTransport.java` | ⬜ |
-| 1.1a | Batch I/O: `sendmmsg()` / `recvmmsg()` wrappers for multi-packet syscall batching (reduces syscall overhead) | — | ⬜ |
-| 1.2 | `EpollPoller`: add/modify/remove fd, poll with timeout, edge-triggered events | `media/UdpTransportPoller.java` | ⬜ |
-| 1.3 | `Thread`: CPU affinity, thread naming (`pthread_setname_np`), join/detach | `concurrent/AgentRunner.java` | ⬜ |
-| 1.4 | `MemoryMappedFile`: create_new (truncate+ftruncate), map_existing, resize, page-aligned, pre-touch pages (`madvise(MADV_WILLNEED)` or `memset` to avoid page faults on hot path) | `buffer/MappedRawLog.java` | ⬜ |
-| 1.5 | `Clock`: `nano_time()` (CLOCK_MONOTONIC), `epoch_time()` (CLOCK_REALTIME) | `concurrent/EpochClock.java`, `NanoClock.java` | ⬜ |
-| 1.6 | Platform tests for all of the above | — | ⬜ |
+| 1.1 | `UdpSocket`: bind, connect, send_to, receive_from, multicast join/leave, non-blocking, socket options (SO_RCVBUF, SO_SNDBUF, IP_MULTICAST_TTL, IP_MULTICAST_IF, SO_BUSY_POLL, SO_PREFER_BUSY_POLL) | `media/UdpChannelTransport.java` | ✅ |
+| 1.1a | Batch I/O: `sendmmsg()` / `recvmmsg()` wrappers for multi-packet syscall batching (reduces syscall overhead) | — | ✅ |
+| 1.2 | `EpollPoller`: add/modify/remove fd, poll with timeout, edge-triggered events | `media/UdpTransportPoller.java` | ✅ |
+| 1.3 | `Thread`: CPU affinity, thread naming (`pthread_setname_np`), join/detach | `concurrent/AgentRunner.java` | ✅ |
+| 1.4 | `MemoryMappedFile`: create_new (truncate+ftruncate), map_existing, resize, page-aligned, pre-touch pages (`madvise(MADV_WILLNEED)` or `memset` to avoid page faults on hot path) | `buffer/MappedRawLog.java` | ✅ |
+| 1.5 | `Clock`: `nano_time()` (CLOCK_MONOTONIC), `epoch_time()` (CLOCK_REALTIME) | `concurrent/EpochClock.java`, `NanoClock.java` | ✅ |
+| 1.6 | Platform tests for all of the above | — | ✅ |
 
 ---
 

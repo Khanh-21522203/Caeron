@@ -13,6 +13,15 @@ namespace caeron::concurrent {
 /// Non-owning typed view over a raw byte span. Provides plain, volatile, and
 /// ordered (store-release / load-acquire) read/write accessors. All multi-byte
 /// accessors use little-endian byte order.
+///
+/// NOTE: Atomic operations reinterpret_cast raw bytes to std::atomic<T>*. This is
+/// technically undefined behavior per the C++ standard (strict aliasing, object lifetime).
+/// It works in practice on all major compilers (GCC, Clang, MSVC) when:
+///   1. The underlying storage is properly aligned (debug asserts added).
+///   2. The storage is backed by char/byte arrays (common implementation guarantee).
+/// C++23 std::start_lifetime_as<> could make this formally correct but is not yet
+/// widely supported. This mirrors Java Aeron's use of sun.misc.Unsafe for direct
+/// memory atomic access.
 class UnsafeBuffer
 {
 public:
@@ -133,6 +142,7 @@ public:
     [[nodiscard]] i32 get_i32_volatile(i32 offset) const noexcept
     {
         assert(offset >= 0 && offset + 4 <= capacity_);
+        assert(is_aligned<i32>(offset));
         auto* ptr = reinterpret_cast<const std::atomic<i32>*>(data_ + offset);
         return ptr->load(std::memory_order_relaxed);
     }
@@ -140,6 +150,7 @@ public:
     void put_i32_volatile(i32 offset, i32 value) noexcept
     {
         assert(offset >= 0 && offset + 4 <= capacity_);
+        assert(is_aligned<i32>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i32>*>(data_ + offset);
         ptr->store(value, std::memory_order_relaxed);
     }
@@ -147,6 +158,7 @@ public:
     [[nodiscard]] i64 get_i64_volatile(i32 offset) const noexcept
     {
         assert(offset >= 0 && offset + 8 <= capacity_);
+        assert(is_aligned<i64>(offset));
         auto* ptr = reinterpret_cast<const std::atomic<i64>*>(data_ + offset);
         return ptr->load(std::memory_order_relaxed);
     }
@@ -154,6 +166,7 @@ public:
     void put_i64_volatile(i32 offset, i64 value) noexcept
     {
         assert(offset >= 0 && offset + 8 <= capacity_);
+        assert(is_aligned<i64>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i64>*>(data_ + offset);
         ptr->store(value, std::memory_order_relaxed);
     }
@@ -163,6 +176,7 @@ public:
     [[nodiscard]] i32 get_i32_ordered(i32 offset) const noexcept
     {
         assert(offset >= 0 && offset + 4 <= capacity_);
+        assert(is_aligned<i32>(offset));
         auto* ptr = reinterpret_cast<const std::atomic<i32>*>(data_ + offset);
         return ptr->load(std::memory_order_acquire);
     }
@@ -170,6 +184,7 @@ public:
     void put_i32_ordered(i32 offset, i32 value) noexcept
     {
         assert(offset >= 0 && offset + 4 <= capacity_);
+        assert(is_aligned<i32>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i32>*>(data_ + offset);
         ptr->store(value, std::memory_order_release);
     }
@@ -177,6 +192,7 @@ public:
     [[nodiscard]] i64 get_i64_ordered(i32 offset) const noexcept
     {
         assert(offset >= 0 && offset + 8 <= capacity_);
+        assert(is_aligned<i64>(offset));
         auto* ptr = reinterpret_cast<const std::atomic<i64>*>(data_ + offset);
         return ptr->load(std::memory_order_acquire);
     }
@@ -184,6 +200,7 @@ public:
     void put_i64_ordered(i32 offset, i64 value) noexcept
     {
         assert(offset >= 0 && offset + 8 <= capacity_);
+        assert(is_aligned<i64>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i64>*>(data_ + offset);
         ptr->store(value, std::memory_order_release);
     }
@@ -193,6 +210,7 @@ public:
     [[nodiscard]] bool compare_and_set_i32(i32 offset, i32 expected, i32 desired) noexcept
     {
         assert(offset >= 0 && offset + 4 <= capacity_);
+        assert(is_aligned<i32>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i32>*>(data_ + offset);
         return ptr->compare_exchange_strong(expected, desired,
                                             std::memory_order_acq_rel);
@@ -201,6 +219,7 @@ public:
     [[nodiscard]] bool compare_and_set_i64(i32 offset, i64 expected, i64 desired) noexcept
     {
         assert(offset >= 0 && offset + 8 <= capacity_);
+        assert(is_aligned<i64>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i64>*>(data_ + offset);
         return ptr->compare_exchange_strong(expected, desired,
                                             std::memory_order_acq_rel);
@@ -208,9 +227,18 @@ public:
 
     // --- Atomic add ---
 
+    [[nodiscard]] i32 get_and_add_i32(i32 offset, i32 increment) noexcept
+    {
+        assert(offset >= 0 && offset + 4 <= capacity_);
+        assert(is_aligned<i32>(offset));
+        auto* ptr = reinterpret_cast<std::atomic<i32>*>(data_ + offset);
+        return ptr->fetch_add(increment, std::memory_order_acq_rel);
+    }
+
     [[nodiscard]] i64 get_and_add_i64(i32 offset, i64 increment) noexcept
     {
         assert(offset >= 0 && offset + 8 <= capacity_);
+        assert(is_aligned<i64>(offset));
         auto* ptr = reinterpret_cast<std::atomic<i64>*>(data_ + offset);
         return ptr->fetch_add(increment, std::memory_order_acq_rel);
     }
@@ -236,6 +264,12 @@ public:
     }
 
 private:
+    template <typename T>
+    [[nodiscard]] bool is_aligned(i32 offset) const noexcept
+    {
+        return (reinterpret_cast<uintptr_t>(data_ + offset) % alignof(T)) == 0;
+    }
+
     std::byte* data_ = nullptr;
     i32 capacity_ = 0;
 };
