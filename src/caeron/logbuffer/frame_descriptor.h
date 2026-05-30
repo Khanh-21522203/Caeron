@@ -2,6 +2,7 @@
 
 #include "caeron/common/types.h"
 #include "caeron/concurrent/unsafe_buffer.h"
+#include "caeron/protocol/header_flyweight.h"
 
 #include <atomic>
 
@@ -26,6 +27,12 @@ struct FrameDescriptor
     static constexpr i32 VERSION_FIELD_OFFSET      = 4;
     static constexpr i32 FLAGS_FIELD_OFFSET         = 5;
     static constexpr i32 TYPE_FIELD_OFFSET          = 6;
+    static constexpr i32 TERM_OFFSET_FIELD_OFFSET   = 8;
+    static constexpr i32 SESSION_ID_FIELD_OFFSET    = 12;
+    static constexpr i32 STREAM_ID_FIELD_OFFSET     = 16;
+    static constexpr i32 TERM_ID_FIELD_OFFSET       = 20;
+
+    // --- Read helpers ---
 
     /// Read the frame length at the given offset using a volatile (relaxed atomic) load.
     [[nodiscard]] static i32 frame_length(const concurrent::UnsafeBuffer& buffer, i32 offset) noexcept
@@ -39,11 +46,63 @@ struct FrameDescriptor
         return buffer.get_u16(offset + TYPE_FIELD_OFFSET);
     }
 
+    /// Read the term ID from the frame header.
+    [[nodiscard]] static i32 frame_term_id(const concurrent::UnsafeBuffer& buffer, i32 offset) noexcept
+    {
+        return buffer.get_i32(offset + TERM_ID_FIELD_OFFSET);
+    }
+
+    /// Read the session ID from the frame header.
+    [[nodiscard]] static i32 frame_session_id(const concurrent::UnsafeBuffer& buffer, i32 offset) noexcept
+    {
+        return buffer.get_i32(offset + SESSION_ID_FIELD_OFFSET);
+    }
+
     /// Determine whether the frame at the given offset is a padding frame.
     /// Padding frames have a negative frame length.
     [[nodiscard]] static bool is_padding_frame(const concurrent::UnsafeBuffer& buffer, i32 offset) noexcept
     {
         return frame_length(buffer, offset) < 0;
+    }
+
+    // --- Write helpers ---
+
+    /// Write the frame length with release semantics. This is the publication
+    /// barrier — all prior writes (payload, header fields) are guaranteed to be
+    /// visible to any thread that reads this frame_length > 0 with acquire semantics.
+    static void frame_length_ordered(concurrent::UnsafeBuffer& buffer, i32 offset, i32 frame_length) noexcept
+    {
+        buffer.put_i32_ordered(offset + FRAME_LENGTH_FIELD_OFFSET, frame_length);
+    }
+
+    /// Write the frame type field.
+    static void frame_type(concurrent::UnsafeBuffer& buffer, i32 offset, u16 type) noexcept
+    {
+        buffer.put_u16(offset + TYPE_FIELD_OFFSET, type);
+    }
+
+    /// Write the flags field.
+    static void frame_flags(concurrent::UnsafeBuffer& buffer, i32 offset, u8 flags) noexcept
+    {
+        buffer.put_u8(offset + FLAGS_FIELD_OFFSET, flags);
+    }
+
+    /// Write the term offset field.
+    static void frame_term_offset(concurrent::UnsafeBuffer& buffer, i32 offset, i32 term_offset) noexcept
+    {
+        buffer.put_i32(offset + TERM_OFFSET_FIELD_OFFSET, term_offset);
+    }
+
+    /// Write the term ID field.
+    static void frame_term_id(concurrent::UnsafeBuffer& buffer, i32 offset, i32 term_id) noexcept
+    {
+        buffer.put_i32(offset + TERM_ID_FIELD_OFFSET, term_id);
+    }
+
+    /// Write the session ID field.
+    static void frame_session_id(concurrent::UnsafeBuffer& buffer, i32 offset, i32 session_id) noexcept
+    {
+        buffer.put_i32(offset + SESSION_ID_FIELD_OFFSET, session_id);
     }
 };
 

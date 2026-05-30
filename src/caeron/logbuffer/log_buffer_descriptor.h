@@ -2,6 +2,10 @@
 
 #include "caeron/common/types.h"
 #include "caeron/common/bit_util.h"
+#include "caeron/concurrent/unsafe_buffer.h"
+#include "caeron/protocol/data_header_flyweight.h"
+
+#include <cstring>
 
 namespace caeron::logbuffer {
 
@@ -94,6 +98,9 @@ struct LogBufferDescriptor
     /// Default frame header (128 bytes starting at offset 320).
     static constexpr i32 DEFAULT_FRAME_HEADER_OFFSET = 320;
 
+    /// Maximum length of a default frame header.
+    static constexpr i32 DEFAULT_FRAME_HEADER_MAX_LENGTH = 128;
+
     /// Entity tag (i64).
     static constexpr i32 ENTITY_TAG_OFFSET = 448;
 
@@ -109,7 +116,7 @@ struct LogBufferDescriptor
     /// Untethered resting timeout (i64).
     static constexpr i32 UNTETHERED_RESTING_TIMEOUT_OFFSET = 480;
 
-    // --- Helpers ---
+    // --- Packing helpers ---
 
     /// Pack a term offset and term ID into a single i64 tail counter.
     /// The term offset occupies the upper 32 bits, term ID the lower 32 bits.
@@ -158,6 +165,81 @@ struct LogBufferDescriptor
     [[nodiscard]] static constexpr i32 position_bits_to_shift(i32 term_length) noexcept
     {
         return static_cast<i32>(std::countr_zero(static_cast<u32>(term_length)));
+    }
+
+    // --- Metadata accessors ---
+
+    /// Read the active term count with volatile semantics.
+    [[nodiscard]] static i32 active_term_count(concurrent::UnsafeBuffer& metadata_buffer) noexcept
+    {
+        return metadata_buffer.get_i32_volatile(ACTIVE_TERM_COUNT_OFFSET);
+    }
+
+    /// Read the packed tail counter for a partition with volatile semantics.
+    [[nodiscard]] static i64 raw_tail_volatile(concurrent::UnsafeBuffer& metadata_buffer, i32 partition_index) noexcept
+    {
+        return metadata_buffer.get_i64_volatile(TAIL_COUNTER_OFFSET_0 + (sizeof(i64) * partition_index));
+    }
+
+    /// Copy the default 32-byte frame header from metadata into a term buffer at the given offset.
+    /// This is used by TermGapFiller and TermUnblocker to initialize frame headers.
+    static void apply_default_header(
+        concurrent::UnsafeBuffer& metadata_buffer,
+        concurrent::UnsafeBuffer& term_buffer,
+        i32 term_offset) noexcept
+    {
+        term_buffer.put_bytes(
+            term_offset,
+            metadata_buffer.data() + DEFAULT_FRAME_HEADER_OFFSET,
+            protocol::DataHeaderFlyweight::HEADER_LENGTH);
+    }
+
+    /// Rotate the log to the next term partition. Uses CAS to ensure only one
+    /// thread performs the rotation. Safe for concurrent use.
+    ///
+    /// @param metadata_buffer  the log metadata buffer
+    /// @param term_count       the current active term count
+    /// @param term_id          the current term ID
+    /// @return true if the log was rotated by this call
+    static bool rotate_log(
+        concurrent::UnsafeBuffer& metadata_buffer,
+        i32 term_count,
+        i32 term_id) noexcept
+    {
+        const i32 next_term_id = term_id + 1;
+        const i32 next_term_count = term_count + 1;
+        const i32 next_index = index_by_term_count(next_term_count);
+        const i32 expected_term_id = next_term_id - PARTITION_COUNT;
+
+        // CAS loop: update the next partition's tail counter
+        i64 raw_tail;
+        do
+        {
+            raw_tail = raw_tail_volatile(metadata_buffer, next_index);
+            if (expected_term_id != tail_term_id(raw_tail))
+            {
+                break;
+            }
+        }
+        while (!metadata_buffer.compare_and_set_i64(
+            TAIL_COUNTER_OFFSET_0 + (sizeof(i64) * next_index),
+            raw_tail,
+            pack_tail(0, next_term_id)));
+
+        // CAS: advance active_term_count
+        return metadata_buffer.compare_and_set_i32(
+            ACTIVE_TERM_COUNT_OFFSET, term_count, next_term_count);
+    }
+
+    /// Initialize the tail counter for a partition with a given term ID.
+    static void initialise_tail_with_term_id(
+        concurrent::UnsafeBuffer& metadata_buffer,
+        i32 partition_index,
+        i32 term_id) noexcept
+    {
+        metadata_buffer.put_i64(
+            TAIL_COUNTER_OFFSET_0 + (partition_index * sizeof(i64)),
+            pack_tail(0, term_id));
     }
 };
 
