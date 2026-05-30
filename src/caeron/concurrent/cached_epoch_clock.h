@@ -1,7 +1,7 @@
 #pragma once
 
 #include "caeron/common/types.h"
-#include "caeron/platform/posix/clock.h"
+#include "platform/posix/clock.h"
 
 namespace caeron::concurrent {
 
@@ -17,7 +17,7 @@ public:
 
     /// Update the cached time from the system clock.
     /// Should be called once per duty cycle (e.g., at the top of the agent loop).
-    void update() noexcept { cached_time_ = caeron::platform::epoch_time(); }
+    void update() noexcept { cached_time_ = platform::epoch_time(); }
 
     /// Reset the cache to 0.
     void reset() noexcept { cached_time_ = 0; }
