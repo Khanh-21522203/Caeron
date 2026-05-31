@@ -169,16 +169,19 @@ struct LogBufferDescriptor
 
     // --- Metadata accessors ---
 
-    /// Read the active term count with volatile semantics.
+    /// Read the active term count with acquire semantics.
+    /// Pairs with the release store in rotate_log to ensure the reader sees
+    /// the updated tail counter for the new term.
     [[nodiscard]] static i32 active_term_count(concurrent::UnsafeBuffer& metadata_buffer) noexcept
     {
-        return metadata_buffer.get_i32_volatile(ACTIVE_TERM_COUNT_OFFSET);
+        return metadata_buffer.get_i32_ordered(ACTIVE_TERM_COUNT_OFFSET);
     }
 
-    /// Read the packed tail counter for a partition with volatile semantics.
+    /// Read the packed tail counter for a partition with acquire semantics.
+    /// Pairs with the release store in rotate_log and tail counter updates.
     [[nodiscard]] static i64 raw_tail_volatile(concurrent::UnsafeBuffer& metadata_buffer, i32 partition_index) noexcept
     {
-        return metadata_buffer.get_i64_volatile(TAIL_COUNTER_OFFSET_0 + (sizeof(i64) * partition_index));
+        return metadata_buffer.get_i64_ordered(TAIL_COUNTER_OFFSET_0 + (sizeof(i64) * partition_index));
     }
 
     /// Copy the default 32-byte frame header from metadata into a term buffer at the given offset.
@@ -211,24 +214,39 @@ struct LogBufferDescriptor
         const i32 next_index = index_by_term_count(next_term_count);
         const i32 expected_term_id = next_term_id - PARTITION_COUNT;
 
-        // CAS loop: update the next partition's tail counter
+        // CAS loop: update the next partition's tail counter.
+        // Only proceed if the tail's term_id matches what we expect
+        // (i.e., the partition is ready to be reused).
         i64 raw_tail;
+        bool tail_updated = false;
         do
         {
             raw_tail = raw_tail_volatile(metadata_buffer, next_index);
             if (expected_term_id != tail_term_id(raw_tail))
             {
+                // Tail doesn't match — partition is not ready.
+                // Another thread may have already rotated, or metadata is stale.
+                return false;
+            }
+            if (metadata_buffer.compare_and_set_i64(
+                TAIL_COUNTER_OFFSET_0 + (sizeof(i64) * next_index),
+                raw_tail,
+                pack_tail(0, next_term_id)))
+            {
+                tail_updated = true;
                 break;
             }
         }
-        while (!metadata_buffer.compare_and_set_i64(
-            TAIL_COUNTER_OFFSET_0 + (sizeof(i64) * next_index),
-            raw_tail,
-            pack_tail(0, next_term_id)));
+        while (true);
 
-        // CAS: advance active_term_count
-        return metadata_buffer.compare_and_set_i32(
-            ACTIVE_TERM_COUNT_OFFSET, term_count, next_term_count);
+        // CAS: advance active_term_count only if we updated the tail
+        if (tail_updated)
+        {
+            return metadata_buffer.compare_and_set_i32(
+                ACTIVE_TERM_COUNT_OFFSET, term_count, next_term_count);
+        }
+
+        return false;
     }
 
     /// Initialize the tail counter for a partition with a given term ID.

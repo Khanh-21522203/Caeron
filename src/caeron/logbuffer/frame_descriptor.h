@@ -34,10 +34,12 @@ struct FrameDescriptor
 
     // --- Read helpers ---
 
-    /// Read the frame length at the given offset using a volatile (relaxed atomic) load.
+    /// Read the frame length at the given offset using an acquire load.
+    /// This pairs with frame_length_ordered (release) to ensure all header/payload
+    /// writes by the publisher are visible to the reader when frame_length > 0.
     [[nodiscard]] static i32 frame_length(const concurrent::UnsafeBuffer& buffer, i32 offset) noexcept
     {
-        return buffer.get_i32_volatile(offset + FRAME_LENGTH_FIELD_OFFSET);
+        return buffer.get_i32_ordered(offset + FRAME_LENGTH_FIELD_OFFSET);
     }
 
     /// Read the frame type at the given offset.
@@ -59,10 +61,12 @@ struct FrameDescriptor
     }
 
     /// Determine whether the frame at the given offset is a padding frame.
-    /// Padding frames have a negative frame length.
+    /// Padding frames are identified by their type field being HDR_TYPE_PAD.
+    /// Note: during in-progress writes, frame_length may be negative (partial claim).
+    /// After gap-filling or unblocking, padding frames have positive frame_length.
     [[nodiscard]] static bool is_padding_frame(const concurrent::UnsafeBuffer& buffer, i32 offset) noexcept
     {
-        return frame_length(buffer, offset) < 0;
+        return frame_type(buffer, offset) == protocol::HeaderFlyweight::HDR_TYPE_PAD;
     }
 
     // --- Write helpers ---

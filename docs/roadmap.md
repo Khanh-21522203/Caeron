@@ -80,16 +80,16 @@ Make all lock-free structures production-ready.
 
 | Step | Description | Java Source | Status |
 |------|-------------|-------------|--------|
-| 2.1 | `ManyToOneRingBuffer`: CAS-based tail, validated read/write, capacity checks, message type filtering | `concurrent/ManyToOneRingBuffer.java` | ⬜ |
-| 2.2 | `BroadcastTransmitter`: monotonic tail, message writing, overflow handling | `concurrent/BroadcastTransmitter.java` | ⬜ |
-| 2.3 | `BroadcastReceiver`: cached tail, message scanning, lapped-buffer detection | `concurrent/BroadcastReceiver.java` | ⬜ |
-| 2.4 | `CountersManager`: allocate/free counters, 64-byte metadata slots (type_id, key, label), counter registration | `concurrent/CountersManager.java` | ⬜ |
-| 2.5 | `AtomicCounter`: get, set, increment, decrement, CAS, close | `concurrent/AtomicCounter.java` | ⬜ |
-| 2.6 | `ManyToOneConcurrentLinkedQueue`: enqueue/dequeue, sentinel node, ABA prevention | `concurrent/ManyToOneConcurrentLinkedQueue.java` | ⬜ |
-| 2.7 | `OneToOneConcurrentArrayQueue`: SPSC enqueue/dequeue, capacity validation | `concurrent/OneToOneConcurrentArrayQueue.java` | ⬜ |
-| 2.8 | `AtomicArrayQueue` / `QueuedPad`: cache-line padded wrappers | `concurrent/AtomicArrayQueue.java` | ⬜ |
-| 2.9 | `CachedEpochClock`, `CachedNanoClock`: time caching for duty cycle | `concurrent/CachedEpochClock.java` | ⬜ |
-| 2.10 | Concurrent structure tests (multi-threaded stress tests) | — | ⬜ |
+| 2.1 | `ManyToOneRingBuffer`: CAS-based tail, validated read/write, capacity checks, message type filtering | `concurrent/ManyToOneRingBuffer.java` | ✅ |
+| 2.2 | `BroadcastTransmitter`: monotonic tail, message writing, overflow handling | `concurrent/BroadcastTransmitter.java` | ✅ |
+| 2.3 | `BroadcastReceiver`: cached tail, message scanning, lapped-buffer detection | `concurrent/BroadcastReceiver.java` | ✅ |
+| 2.4 | `CountersManager`: allocate/free counters, 64-byte metadata slots (type_id, key, label), counter registration | `concurrent/CountersManager.java` | ✅ |
+| 2.5 | `AtomicCounter`: get, set, increment, decrement, CAS, close | `concurrent/AtomicCounter.java` | ✅ |
+| 2.6 | `ManyToOneConcurrentLinkedQueue`: enqueue/dequeue, sentinel node, ABA prevention | `concurrent/ManyToOneConcurrentLinkedQueue.java` | ✅ |
+| 2.7 | `OneToOneConcurrentArrayQueue`: SPSC enqueue/dequeue, capacity validation | `concurrent/OneToOneConcurrentArrayQueue.java` | ✅ |
+| 2.8 | `AtomicArrayQueue` / `QueuedPad`: cache-line padded wrappers | `concurrent/AtomicArrayQueue.java` | ✅ |
+| 2.9 | `CachedEpochClock`, `CachedNanoClock`: time caching for duty cycle | `concurrent/CachedEpochClock.java` | ✅ |
+| 2.10 | Concurrent structure tests (multi-threaded stress tests) | — | ✅ |
 
 ---
 
@@ -99,18 +99,18 @@ Implement the term buffer manipulation functions.
 
 | Step | Description | Java Source | Status |
 |------|-------------|-------------|--------|
-| 3.1 | `TermReader`: read frames from a term buffer, handle padding frames | `logbuffer/TermReader.java` | ⬜ |
-| 3.2 | `TermScanner`: scan for available data, return high-water-mark offset | `logbuffer/TermScanner.java` | ⬜ |
-| 3.3 | `TermRebuilder`: insert received frames into the correct term offset | `logbuffer/TermRebuilder.java` | ⬜ |
-| 3.4 | `TermGapScanner`: detect gaps in received data for NAK generation | `logbuffer/TermGapScanner.java` | ⬜ |
-| 3.5 | `TermGapFiller`: fill gaps with padding frames | `logbuffer/TermGapFiller.java` | ⬜ |
-| 3.6 | `TermBlockScanner`: scan for contiguous blocks (batch processing) | `logbuffer/TermBlockScanner.java` | ⬜ |
-| 3.7 | `TermUnblocker`: unblock a stuck publisher at a specific offset | `logbuffer/TermUnblocker.java` | ⬜ |
-| 3.8 | `LogBufferUnblocker`: detect and unblock stuck publishers across all terms | `logbuffer/LogBufferUnblocker.java` | ⬜ |
-| 3.9 | `BufferClaim`: claim space in term buffer for writing | `logbuffer/BufferClaim.java` | ⬜ |
+| 3.1 | `TermReader`: read frames from a term buffer, handle padding frames | `logbuffer/TermReader.java` | ✅ |
+| 3.2 | `TermScanner`: scan for available data, return high-water-mark offset | `logbuffer/TermScanner.java` | ✅ |
+| 3.3 | `TermRebuilder`: insert received frames into the correct term offset | `logbuffer/TermRebuilder.java` | ✅ |
+| 3.4 | `TermGapScanner`: detect gaps in received data for NAK generation | `logbuffer/TermGapScanner.java` | ✅ |
+| 3.5 | `TermGapFiller`: fill gaps with padding frames | `logbuffer/TermGapFiller.java` | ✅ |
+| 3.6 | `TermBlockScanner`: scan for contiguous blocks (batch processing) | `logbuffer/TermBlockScanner.java` | ✅ |
+| 3.7 | `TermUnblocker`: unblock a stuck publisher at a specific offset | `logbuffer/TermUnblocker.java` | ✅ |
+| 3.8 | `LogBufferUnblocker`: detect and unblock stuck publishers across all terms | `logbuffer/LogBufferUnblocker.java` | ✅ |
+| 3.9 | `BufferClaim`: claim space in term buffer for writing | `logbuffer/BufferClaim.java` | ✅ |
 | 3.10 | `BlockHandler` / `RawBlockHandler`: callback interfaces for block scanning | `logbuffer/BlockHandler.java`, `RawBlockHandler.java` | ⬜ |
 | 3.11 | `FragmentHandler` / `ControlledFragmentHandler`: callback interfaces for frame reading | `logbuffer/FragmentHandler.java`, `ControlledFragmentHandler.java` | ⬜ |
-| 3.12 | Log buffer operation tests | — | ⬜ |
+| 3.12 | Log buffer operation tests | — | ✅ |
 
 ---
 
