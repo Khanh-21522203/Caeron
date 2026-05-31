@@ -50,3 +50,40 @@ TEST(StatusMessageFlyweight, GroupTag)
     sm.set_group_tag(0xCAFEBABE);
     EXPECT_EQ(sm.group_tag(), 0xCAFEBABE);
 }
+
+TEST(StatusMessageFlyweight, GroupTagReturnsZeroWhenNoGroupTag)
+{
+    std::array<std::byte, 256> storage{};
+    UnsafeBuffer buf{storage};
+    StatusMessageFlyweight sm{buf};
+
+    // frame_length = 36 (no group tag)
+    sm.set_frame_length(36);
+    EXPECT_EQ(sm.group_tag(), 0);
+}
+
+TEST(StatusMessageFlyweight, GroupTagThrowsForMalformedAsf)
+{
+    std::array<std::byte, 256> storage{};
+    UnsafeBuffer buf{storage};
+    StatusMessageFlyweight sm{buf};
+
+    // frame_length = 52 (ASF = 16 bytes, longer than group tag)
+    sm.set_frame_length(52);
+    EXPECT_THROW(
+        { [[maybe_unused]] i64 val = sm.group_tag(); },
+        std::runtime_error);
+}
+
+TEST(StatusMessageFlyweight, GroupTagThrowsForShortAsf)
+{
+    std::array<std::byte, 256> storage{};
+    UnsafeBuffer buf{storage};
+    StatusMessageFlyweight sm{buf};
+
+    // frame_length = 40 (ASF = 4 bytes, not a valid group tag)
+    sm.set_frame_length(40);
+    EXPECT_THROW(
+        { [[maybe_unused]] i64 val = sm.group_tag(); },
+        std::runtime_error);
+}

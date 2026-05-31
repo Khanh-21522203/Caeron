@@ -36,4 +36,14 @@ TEST(HeaderFlyweight, TypeConstants)
     EXPECT_EQ(HeaderFlyweight::HDR_TYPE_SETUP, 0x05);
     EXPECT_EQ(HeaderFlyweight::HDR_TYPE_RTTM, 0x06);
     EXPECT_EQ(HeaderFlyweight::HDR_TYPE_RES, 0x07);
+    EXPECT_EQ(HeaderFlyweight::HDR_TYPE_ATS_DATA, 0x08);
+    EXPECT_EQ(HeaderFlyweight::HDR_TYPE_ATS_SM, 0x09);
+    EXPECT_EQ(HeaderFlyweight::HDR_TYPE_ATS_SETUP, 0x0A);
+    EXPECT_EQ(HeaderFlyweight::HDR_TYPE_RSP_SETUP, 0x0B);
+    EXPECT_EQ(HeaderFlyweight::HDR_TYPE_EXT, 0xFFFF);
+}
+
+TEST(HeaderFlyweight, VersionConstant)
+{
+    EXPECT_EQ(HeaderFlyweight::CURRENT_VERSION, 0x0);
 }

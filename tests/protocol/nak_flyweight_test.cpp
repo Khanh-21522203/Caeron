@@ -52,3 +52,35 @@ TEST(NakFlyweight, BinaryLayoutCompatibility)
     EXPECT_EQ(nak.term_offset(), 2048);
     EXPECT_EQ(nak.length(), 512);
 }
+
+TEST(NakFlyweight, FieldAccessorsAtNonZeroOffset)
+{
+    std::array<std::byte, 512> storage{};
+    UnsafeBuffer buf{storage};
+    constexpr i32 offset = 128;
+    NakFlyweight nak{buf, offset};
+
+    nak.set_frame_length(28)
+       .set_version(0)
+       .set_flags(0)
+       .set_type(HeaderFlyweight::HDR_TYPE_NAK)
+       .set_session_id(100)
+       .set_stream_id(5)
+       .set_term_id(3)
+       .set_term_offset(4096)
+       .set_length(1024);
+
+    EXPECT_EQ(nak.frame_length(), 28);
+    EXPECT_EQ(nak.session_id(), 100);
+    EXPECT_EQ(nak.stream_id(), 5);
+    EXPECT_EQ(nak.term_id(), 3);
+    EXPECT_EQ(nak.term_offset(), 4096);
+    EXPECT_EQ(nak.length(), 1024);
+
+    // Verify data is at correct offset, not at offset 0
+    EXPECT_EQ(buf.get_i32(offset + 0), 28);
+    EXPECT_EQ(buf.get_i32(offset + 8), 100);
+    EXPECT_EQ(buf.get_i32(offset + 16), 3);
+    EXPECT_EQ(buf.get_i32(offset + 24), 1024);
+    EXPECT_EQ(buf.get_i32(0), 0);
+}

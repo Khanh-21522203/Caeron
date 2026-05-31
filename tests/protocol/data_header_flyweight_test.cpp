@@ -65,3 +65,86 @@ TEST(DataHeaderFlyweight, BinaryLayoutCompatibility)
     EXPECT_EQ(hdr.term_offset(), 2048);
     EXPECT_EQ(hdr.reserved_value(), 42);
 }
+
+TEST(DataHeaderFlyweight, FieldAccessorsAtNonZeroOffset)
+{
+    std::array<std::byte, 256> storage{};
+    UnsafeBuffer buf{storage};
+    constexpr i32 offset = 64;
+    DataHeaderFlyweight hdr{buf, offset};
+
+    hdr.set_frame_length(32)
+       .set_version(0)
+       .set_flags(DataHeaderFlyweight::UNFRAGMENTED)
+       .set_type(HeaderFlyweight::HDR_TYPE_DATA)
+       .set_term_offset(4096)
+       .set_session_id(0xAAAAAAAA)
+       .set_stream_id(99)
+       .set_term_id(42)
+       .set_reserved_value(0x1122334455667788LL);
+
+    EXPECT_EQ(hdr.frame_length(), 32);
+    EXPECT_EQ(hdr.flags(), DataHeaderFlyweight::UNFRAGMENTED);
+    EXPECT_EQ(hdr.term_offset(), 4096);
+    EXPECT_EQ(hdr.session_id(), 0xAAAAAAAA);
+    EXPECT_EQ(hdr.stream_id(), 99);
+    EXPECT_EQ(hdr.term_id(), 42);
+    EXPECT_EQ(hdr.reserved_value(), 0x1122334455667788LL);
+
+    // Verify data is at correct offset, not at offset 0
+    EXPECT_EQ(buf.get_i32(offset + 0), 32);
+    EXPECT_EQ(buf.get_i32(offset + 12), 0xAAAAAAAA);
+    EXPECT_EQ(buf.get_i32(offset + 20), 42);
+}
+
+TEST(DataHeaderFlyweight, FlagConstants)
+{
+    EXPECT_EQ(DataHeaderFlyweight::BEGIN_FLAG, 0x80);
+    EXPECT_EQ(DataHeaderFlyweight::END_FLAG, 0x40);
+    EXPECT_EQ(DataHeaderFlyweight::EOS_FLAG, 0x20);
+    EXPECT_EQ(DataHeaderFlyweight::REVOKED_FLAG, 0x10);
+    EXPECT_EQ(DataHeaderFlyweight::UNFRAGMENTED, 0xC0);
+    EXPECT_EQ(DataHeaderFlyweight::BEGIN_AND_END_FLAGS, 0xC0);
+    EXPECT_EQ(DataHeaderFlyweight::BEGIN_END_AND_EOS_FLAGS, 0xE0);
+    EXPECT_EQ(DataHeaderFlyweight::BEGIN_END_EOS_AND_REVOKED_FLAGS, 0xF0);
+}
+
+TEST(DataHeaderFlyweight, IsEndOfStreamAndIsRevoked)
+{
+    std::array<std::byte, 256> storage{};
+    UnsafeBuffer buf{storage};
+
+    // No flags set
+    EXPECT_FALSE(DataHeaderFlyweight::is_end_of_stream(buf));
+    EXPECT_FALSE(DataHeaderFlyweight::is_revoked(buf));
+
+    // Set EOS flag
+    buf.put_u8(5, DataHeaderFlyweight::EOS_FLAG);
+    EXPECT_TRUE(DataHeaderFlyweight::is_end_of_stream(buf));
+    EXPECT_FALSE(DataHeaderFlyweight::is_revoked(buf));
+
+    // Set REVOKED flag
+    buf.put_u8(5, DataHeaderFlyweight::REVOKED_FLAG);
+    EXPECT_FALSE(DataHeaderFlyweight::is_end_of_stream(buf));
+    EXPECT_TRUE(DataHeaderFlyweight::is_revoked(buf));
+
+    // Set both
+    buf.put_u8(5, DataHeaderFlyweight::EOS_FLAG | DataHeaderFlyweight::REVOKED_FLAG);
+    EXPECT_TRUE(DataHeaderFlyweight::is_end_of_stream(buf));
+    EXPECT_TRUE(DataHeaderFlyweight::is_revoked(buf));
+}
+
+TEST(DataHeaderFlyweight, IsEndOfStreamAtNonZeroOffset)
+{
+    std::array<std::byte, 256> storage{};
+    UnsafeBuffer buf{storage};
+    constexpr i32 offset = 128;
+
+    // Set EOS flag at non-zero offset
+    buf.put_u8(offset + 5, DataHeaderFlyweight::EOS_FLAG);
+    EXPECT_TRUE(DataHeaderFlyweight::is_end_of_stream(buf, offset));
+    EXPECT_FALSE(DataHeaderFlyweight::is_revoked(buf, offset));
+
+    // Verify offset 0 is unaffected
+    EXPECT_FALSE(DataHeaderFlyweight::is_end_of_stream(buf, 0));
+}

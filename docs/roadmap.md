@@ -120,10 +120,10 @@ Add the missing flyweight and wire protocol details.
 
 | Step | Description | Java Source | Status |
 |------|-------------|-------------|--------|
-| 4.1 | `ResolutionEntryFlyweight`: name resolution protocol frame | `protocol/ResolutionEntryFlyweight.java` | ⬜ |
-| 4.2 | Frame flag validation: verify BEGIN/END/EOS/REVOKED flag semantics | `protocol/DataHeaderFlyweight.java` | ⬜ |
-| 4.3 | `HeaderWriter`: finalize write_default_header with full field initialization | `logbuffer/HeaderWriter.java` | ⬜ |
-| 4.4 | Protocol tests for new flyweights | — | ⬜ |
+| 4.1 | `ResolutionEntryFlyweight`: name resolution protocol frame | `protocol/ResolutionEntryFlyweight.java` | ✅ |
+| 4.2 | Frame flag validation: verify BEGIN/END/EOS/REVOKED flag semantics | `protocol/DataHeaderFlyweight.java` | ✅ |
+| 4.3 | `HeaderWriter`: finalize write_default_header with full field initialization | `logbuffer/HeaderWriter.java` | ✅ |
+| 4.4 | Protocol tests for new flyweights | — | ✅ |
 
 ---
 

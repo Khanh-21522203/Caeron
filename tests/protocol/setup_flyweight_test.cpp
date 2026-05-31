@@ -62,3 +62,41 @@ TEST(SetupFlyweight, BinaryLayoutCompatibility)
     EXPECT_EQ(sf.mtu_length(), 1408);
     EXPECT_EQ(sf.ttl(), 2);
 }
+
+TEST(SetupFlyweight, FieldAccessorsAtNonZeroOffset)
+{
+    std::array<std::byte, 512> storage{};
+    UnsafeBuffer buf{storage};
+    constexpr i32 offset = 128;
+    SetupFlyweight sf{buf, offset};
+
+    sf.set_frame_length(40)
+      .set_version(0)
+      .set_flags(0x40)
+      .set_type(HeaderFlyweight::HDR_TYPE_SETUP)
+      .set_term_offset(8192)
+      .set_session_id(0x12345678)
+      .set_stream_id(100)
+      .set_initial_term_id(5)
+      .set_active_term_id(5)
+      .set_term_length(65536)
+      .set_mtu_length(1408)
+      .set_ttl(2);
+
+    EXPECT_EQ(sf.frame_length(), 40);
+    EXPECT_EQ(sf.session_id(), 0x12345678);
+    EXPECT_EQ(sf.stream_id(), 100);
+    EXPECT_EQ(sf.initial_term_id(), 5);
+    EXPECT_EQ(sf.active_term_id(), 5);
+    EXPECT_EQ(sf.term_length(), 65536);
+    EXPECT_EQ(sf.mtu_length(), 1408);
+    EXPECT_EQ(sf.ttl(), 2);
+
+    // Verify data is at correct offset
+    EXPECT_EQ(buf.get_i32(offset + 0), 40);
+    EXPECT_EQ(buf.get_i32(offset + 8), 8192);
+    EXPECT_EQ(buf.get_i32(offset + 12), 0x12345678);
+    EXPECT_EQ(buf.get_i32(offset + 20), 5);
+    EXPECT_EQ(buf.get_i32(offset + 28), 65536);
+    EXPECT_EQ(buf.get_i32(0), 0);
+}

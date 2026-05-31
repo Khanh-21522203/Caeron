@@ -38,6 +38,11 @@ public:
     static constexpr u8 REVOKED_FLAG = 0x10;
     static constexpr u8 UNFRAGMENTED = BEGIN_FLAG | END_FLAG;
 
+    // Combined flag constants
+    static constexpr u8 BEGIN_AND_END_FLAGS = BEGIN_FLAG | END_FLAG;
+    static constexpr u8 BEGIN_END_AND_EOS_FLAGS = BEGIN_FLAG | END_FLAG | EOS_FLAG;
+    static constexpr u8 BEGIN_END_EOS_AND_REVOKED_FLAGS = BEGIN_FLAG | END_FLAG | EOS_FLAG | REVOKED_FLAG;
+
     explicit DataHeaderFlyweight(concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
         : buffer_{buffer}, offset_{offset}
     {}
@@ -71,10 +76,23 @@ public:
     [[nodiscard]] i64 reserved_value() const noexcept { return buffer_.get_i64(offset_ + RESERVED_VALUE_FIELD_OFFSET); }
     DataHeaderFlyweight& set_reserved_value(i64 v) noexcept { buffer_.put_i64(offset_ + RESERVED_VALUE_FIELD_OFFSET, v); return *this; }
 
+    /// Check if the EOS flag is set in the given buffer at the specified offset.
+    [[nodiscard]] static bool is_end_of_stream(const concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
+    {
+        return (buffer.get_u8(offset + FLAGS_FIELD_OFFSET) & EOS_FLAG) != 0;
+    }
+
+    /// Check if the REVOKED flag is set in the given buffer at the specified offset.
+    [[nodiscard]] static bool is_revoked(const concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
+    {
+        return (buffer.get_u8(offset + FLAGS_FIELD_OFFSET) & REVOKED_FLAG) != 0;
+    }
+
     [[nodiscard]] concurrent::UnsafeBuffer& buffer() noexcept { return buffer_; }
     [[nodiscard]] i32 offset() const noexcept { return offset_; }
 
 private:
+    static constexpr i32 FLAGS_FIELD_OFFSET = 5;
     static constexpr i32 TERM_OFFSET_FIELD_OFFSET = 8;
     static constexpr i32 SESSION_ID_FIELD_OFFSET = 12;
     static constexpr i32 STREAM_ID_FIELD_OFFSET = 16;

@@ -251,6 +251,14 @@ public:
         std::memcpy(data_ + offset, src, static_cast<size_t>(length));
     }
 
+    /// Copy bytes from another UnsafeBuffer into this buffer.
+    void put_bytes(i32 dst_offset, const UnsafeBuffer& src, i32 src_offset, i32 length) noexcept
+    {
+        assert(dst_offset >= 0 && dst_offset + length <= capacity_);
+        assert(src_offset >= 0 && src_offset + length <= src.capacity_);
+        std::memcpy(data_ + dst_offset, src.data_ + src_offset, static_cast<size_t>(length));
+    }
+
     void get_bytes(i32 offset, void* dst, i32 length) const noexcept
     {
         assert(offset >= 0 && offset + length <= capacity_);
