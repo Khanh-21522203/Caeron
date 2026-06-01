@@ -3,6 +3,8 @@
 #include "caeron/common/types.h"
 #include "caeron/concurrent/unsafe_buffer.h"
 
+#include <limits>
+
 namespace caeron::cnc {
 
 /// Layout of the CnC (Command and Control) memory-mapped file shared between
@@ -46,22 +48,31 @@ struct CncFileDescriptor
 
     static i32 to_clients_buffer_offset(i32 to_driver_buffer_length)
     {
-        return to_driver_buffer_offset() + to_driver_buffer_length;
+        const i64 result = static_cast<i64>(to_driver_buffer_offset()) + to_driver_buffer_length;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
     }
 
     static i32 counters_metadata_buffer_offset(i32 to_driver_buffer_length,
                                                 i32 to_clients_buffer_length)
     {
-        return to_clients_buffer_offset(to_driver_buffer_length) + to_clients_buffer_length;
+        const i32 base = to_clients_buffer_offset(to_driver_buffer_length);
+        if (base < 0) return -1;
+        const i64 result = static_cast<i64>(base) + to_clients_buffer_length;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
     }
 
     static i32 counters_values_buffer_offset(i32 to_driver_buffer_length,
                                               i32 to_clients_buffer_length,
                                               i32 counters_metadata_buffer_length)
     {
-        return counters_metadata_buffer_offset(to_driver_buffer_length,
-                                               to_clients_buffer_length) +
-               counters_metadata_buffer_length;
+        const i32 base = counters_metadata_buffer_offset(to_driver_buffer_length,
+                                                         to_clients_buffer_length);
+        if (base < 0) return -1;
+        const i64 result = static_cast<i64>(base) + counters_metadata_buffer_length;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
     }
 
     static i32 error_log_buffer_offset(i32 to_driver_buffer_length,
@@ -69,10 +80,13 @@ struct CncFileDescriptor
                                         i32 counters_metadata_buffer_length,
                                         i32 counters_values_buffer_length)
     {
-        return counters_values_buffer_offset(to_driver_buffer_length,
-                                             to_clients_buffer_length,
-                                             counters_metadata_buffer_length) +
-               counters_values_buffer_length;
+        const i32 base = counters_values_buffer_offset(to_driver_buffer_length,
+                                                       to_clients_buffer_length,
+                                                       counters_metadata_buffer_length);
+        if (base < 0) return -1;
+        const i64 result = static_cast<i64>(base) + counters_values_buffer_length;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
     }
 
     static i32 total_length(i32 to_driver_buffer_length,
@@ -81,11 +95,14 @@ struct CncFileDescriptor
                             i32 counters_values_buffer_length,
                             i32 error_log_buffer_length)
     {
-        return error_log_buffer_offset(to_driver_buffer_length,
-                                       to_clients_buffer_length,
-                                       counters_metadata_buffer_length,
-                                       counters_values_buffer_length) +
-               error_log_buffer_length;
+        const i32 base = error_log_buffer_offset(to_driver_buffer_length,
+                                                 to_clients_buffer_length,
+                                                 counters_metadata_buffer_length,
+                                                 counters_values_buffer_length);
+        if (base < 0) return -1;
+        const i64 result = static_cast<i64>(base) + error_log_buffer_length;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
     }
 
     /// Fill in the meta data header fields.
@@ -120,41 +137,57 @@ struct CncFileDescriptor
 
     [[nodiscard]] static i32 to_driver_buffer_length(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < TO_DRIVER_BUFFER_LENGTH_FIELD_OFFSET + 4)
+            return 0;
         return cnc_buffer.get_i32(TO_DRIVER_BUFFER_LENGTH_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i32 to_clients_buffer_length(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < TO_CLIENTS_BUFFER_LENGTH_FIELD_OFFSET + 4)
+            return 0;
         return cnc_buffer.get_i32(TO_CLIENTS_BUFFER_LENGTH_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i32 counters_metadata_buffer_length(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < COUNTERS_METADATA_BUFFER_LENGTH_FIELD_OFFSET + 4)
+            return 0;
         return cnc_buffer.get_i32(COUNTERS_METADATA_BUFFER_LENGTH_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i32 counters_values_buffer_length(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < COUNTERS_VALUES_BUFFER_LENGTH_FIELD_OFFSET + 4)
+            return 0;
         return cnc_buffer.get_i32(COUNTERS_VALUES_BUFFER_LENGTH_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i32 error_log_buffer_length(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < ERROR_LOG_BUFFER_LENGTH_FIELD_OFFSET + 4)
+            return 0;
         return cnc_buffer.get_i32(ERROR_LOG_BUFFER_LENGTH_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i64 client_liveness_timeout(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < CLIENT_LIVENESS_TIMEOUT_FIELD_OFFSET + 8)
+            return 0;
         return cnc_buffer.get_i64(CLIENT_LIVENESS_TIMEOUT_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i64 pid(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < PID_FIELD_OFFSET + 8)
+            return 0;
         return cnc_buffer.get_i64(PID_FIELD_OFFSET);
     }
 
     [[nodiscard]] static i64 start_timestamp(concurrent::UnsafeBuffer& cnc_buffer)
     {
+        if (cnc_buffer.capacity() < START_TIMESTAMP_FIELD_OFFSET + 8)
+            return 0;
         return cnc_buffer.get_i64(START_TIMESTAMP_FIELD_OFFSET);
     }
 };

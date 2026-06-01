@@ -133,13 +133,13 @@ Implement the client-driver IPC protocol.
 
 | Step | Description | Java Source | Status |
 |------|-------------|-------------|--------|
-| 5.1 | `CncFileDescriptor`: full implementation (meta data read/write, section offset calculation) | `CncFileDescriptor.java` | ⬜ |
-| 5.2 | `MappedLogBuffersFactory`: create/map log buffers from file paths | `MappedLogBuffersFactory.java` | ⬜ |
-| 5.3 | `DriverProxy`: write commands to the to-driver ring buffer (add_publication, add_subscription, remove, etc.) | `DriverProxy.java` | ⬜ |
-| 5.4 | `ClientCommandAdapter`: read commands from ring buffer and dispatch to DriverConductor | `ClientCommandAdapter.java` | ⬜ |
-| 5.5 | `ClientProxy`: write responses to the to-clients broadcast buffer | `ClientProxy.java` | ⬜ |
-| 5.6 | `DriverEventsAdapter`: read responses from broadcast buffer | `DriverEventsAdapter.java` | ⬜ |
-| 5.7 | CnC integration tests | — | ⬜ |
+| 5.1 | `CncFileDescriptor`: full implementation (meta data read/write, section offset calculation) | `CncFileDescriptor.java` | ✅ |
+| 5.2 | `MappedLogBuffersFactory`: create/map log buffers from file paths | `MappedLogBuffersFactory.java` | ✅ |
+| 5.3 | `DriverProxy`: write commands to the to-driver ring buffer (add_publication, add_subscription, remove, etc.) | `DriverProxy.java` | ✅ |
+| 5.4 | `ClientCommandAdapter`: read commands from ring buffer and dispatch to DriverConductor | `ClientCommandAdapter.java` | ✅ |
+| 5.5 | `ClientProxy`: write responses to the to-clients broadcast buffer | `ClientProxy.java` | ✅ |
+| 5.6 | `DriverEventsAdapter`: read responses from broadcast buffer | `DriverEventsAdapter.java` | ✅ |
+| 5.7 | CnC integration tests | — | ✅ |
 
 ---
 

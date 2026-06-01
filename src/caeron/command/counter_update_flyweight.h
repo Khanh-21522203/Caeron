@@ -13,6 +13,8 @@ inline constexpr i32 COUNTER_UPDATE_LENGTH = 12;
 
 class CounterUpdateFlyweight {
 public:
+    /// NOTE: offset_ is not bounds-checked. Callers must ensure offset_ >= 0
+    /// and that the fixed fields (12 bytes) fit within the buffer capacity.
     explicit CounterUpdateFlyweight(concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
         : buffer_{buffer}, offset_{offset} {}
 

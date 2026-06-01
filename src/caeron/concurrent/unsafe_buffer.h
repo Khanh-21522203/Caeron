@@ -22,6 +22,15 @@ namespace caeron::concurrent {
 /// C++23 std::start_lifetime_as<> could make this formally correct but is not yet
 /// widely supported. This mirrors Java Aeron's use of sun.misc.Unsafe for direct
 /// memory atomic access.
+///
+/// SAFETY CONTRACT: All bounds and alignment checks use `assert()` which compiles
+/// away in release builds (NDEBUG). Callers MUST ensure:
+///   - offsets are non-negative and within [0, capacity)
+///   - multi-byte accessors are naturally aligned (offset % sizeof(T) == 0)
+///   - the buffer lifetime exceeds all accessor calls
+/// Violating these contracts in release mode causes undefined behavior (out-of-bounds
+/// access, misaligned atomics). This is a deliberate performance trade-off matching
+/// Java Aeron's Unsafe-based design -- the hot path must not branch on every access.
 class UnsafeBuffer
 {
 public:

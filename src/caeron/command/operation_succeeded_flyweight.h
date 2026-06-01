@@ -12,6 +12,8 @@ inline constexpr i32 OPERATION_SUCCEEDED_LENGTH = 8;
 
 class OperationSucceededFlyweight {
 public:
+    /// NOTE: offset_ is not bounds-checked. Callers must ensure offset_ >= 0
+    /// and that the fixed fields (8 bytes) fit within the buffer capacity.
     explicit OperationSucceededFlyweight(concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
         : buffer_{buffer}, offset_{offset} {}
 

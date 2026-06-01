@@ -7,25 +7,26 @@
 
 namespace caeron::command {
 
-/// Layout (matches Java Aeron SubscriptionMessageFlyweight):
+/// Control message for adding or removing a destination for a multi-destination-cast
+/// Publication or Subscription.
+/// Extends CorrelatedMessageFlyweight in Java; standalone here.
+/// Layout:
 ///   [ 0] i64  client_id
 ///   [ 8] i64  correlation_id
 ///   [16] i64  registration_correlation_id
-///   [24] i32  stream_id
-///   [28] i32  channel_length
-///   [32] u8[] channel (variable)
-inline constexpr i32 SUBSCRIPTION_MSG_MINIMUM_LENGTH = 32; // 8+8+8+4+4+0 (no channel data)
+///   [24] i32  channel_length
+///   [28] u8[] channel (variable)
+inline constexpr i32 DESTINATION_MSG_MINIMUM_LENGTH = 28;
 
-class SubscriptionMessageFlyweight {
+class DestinationMessageFlyweight {
 public:
-    static constexpr i32 CLIENT_ID_OFFSET                   = 0;
-    static constexpr i32 CORRELATION_ID_OFFSET              = 8;
-    static constexpr i32 REGISTRATION_CORRELATION_ID_OFFSET = 16;
-    static constexpr i32 STREAM_ID_OFFSET                   = 24;
-    static constexpr i32 CHANNEL_LENGTH_OFFSET              = 28;
-    static constexpr i32 CHANNEL_OFFSET                     = 32;
+    static constexpr i32 CLIENT_ID_OFFSET                      = 0;
+    static constexpr i32 CORRELATION_ID_OFFSET                 = 8;
+    static constexpr i32 REGISTRATION_CORRELATION_ID_OFFSET    = 16;
+    static constexpr i32 CHANNEL_LENGTH_OFFSET                 = 24;
+    static constexpr i32 CHANNEL_OFFSET                        = 28;
 
-    explicit SubscriptionMessageFlyweight(concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
+    explicit DestinationMessageFlyweight(concurrent::UnsafeBuffer& buffer, i32 offset = 0) noexcept
         : buffer_{buffer}, offset_{offset} {}
 
     [[nodiscard]] i64 client_id() const noexcept { return buffer_.get_i64(offset_ + CLIENT_ID_OFFSET); }
@@ -34,24 +35,14 @@ public:
     [[nodiscard]] i64 correlation_id() const noexcept { return buffer_.get_i64(offset_ + CORRELATION_ID_OFFSET); }
     void set_correlation_id(i64 value) noexcept { buffer_.put_i64(offset_ + CORRELATION_ID_OFFSET, value); }
 
-    [[nodiscard]] i64 registration_correlation_id() const noexcept
-    {
-        return buffer_.get_i64(offset_ + REGISTRATION_CORRELATION_ID_OFFSET);
-    }
-
-    void set_registration_correlation_id(i64 value) noexcept
-    {
-        buffer_.put_i64(offset_ + REGISTRATION_CORRELATION_ID_OFFSET, value);
-    }
-
-    [[nodiscard]] i32 stream_id() const noexcept { return buffer_.get_i32(offset_ + STREAM_ID_OFFSET); }
-    void set_stream_id(i32 value) noexcept { buffer_.put_i32(offset_ + STREAM_ID_OFFSET, value); }
+    [[nodiscard]] i64 registration_correlation_id() const noexcept { return buffer_.get_i64(offset_ + REGISTRATION_CORRELATION_ID_OFFSET); }
+    void set_registration_correlation_id(i64 value) noexcept { buffer_.put_i64(offset_ + REGISTRATION_CORRELATION_ID_OFFSET, value); }
 
     [[nodiscard]] i32 channel_length() const noexcept { return buffer_.get_i32(offset_ + CHANNEL_LENGTH_OFFSET); }
     /// RAW FIELD SETTER -- no validation. Prefer set_channel() for bounds-checked writes.
     void set_channel_length(i32 length) noexcept { buffer_.put_i32(offset_ + CHANNEL_LENGTH_OFFSET, length); }
 
-    /// Returns a pointer to the start of the channel bytes. NOT null-terminated.
+    /// Returns a pointer to the channel bytes. NOT null-terminated.
     [[nodiscard]] const char* channel() const noexcept
     {
         if (offset_ < 0 || buffer_.capacity() < offset_ || buffer_.capacity() - offset_ < CHANNEL_OFFSET) return nullptr;
@@ -75,7 +66,7 @@ public:
             buffer_.put_bytes(offset_ + CHANNEL_OFFSET, data, length);
     }
 
-    /// Total byte length of this flyweight given the current channel_length().
+    /// Total byte length given the current channel_length().
     [[nodiscard]] i32 length() const noexcept
     {
         const i32 len = channel_length();

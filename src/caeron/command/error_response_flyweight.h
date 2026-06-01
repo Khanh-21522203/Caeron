@@ -3,6 +3,8 @@
 #include "caeron/common/types.h"
 #include "caeron/concurrent/unsafe_buffer.h"
 
+#include <limits>
+
 namespace caeron::command {
 
 /// Layout:
@@ -27,23 +29,50 @@ public:
     void set_error_code(i32 value) noexcept { buffer_.put_i32(offset_ + ERROR_CODE_OFFSET, value); }
 
     [[nodiscard]] i32 error_message_length() const noexcept { return buffer_.get_i32(offset_ + ERROR_MESSAGE_LENGTH_OFFSET); }
+    /// RAW FIELD SETTER -- no validation. Prefer set_error_message() for bounds-checked writes.
     void set_error_message_length(i32 length) noexcept { buffer_.put_i32(offset_ + ERROR_MESSAGE_LENGTH_OFFSET, length); }
 
+    /// Returns a pointer to the error message bytes. NOT null-terminated.
     [[nodiscard]] const char* error_message() const noexcept
     {
+        if (offset_ < 0 || buffer_.capacity() < offset_ || buffer_.capacity() - offset_ < ERROR_MESSAGE_OFFSET) return nullptr;
         return reinterpret_cast<const char*>(buffer_.data() + offset_ + ERROR_MESSAGE_OFFSET);
     }
 
+    /// Copy error message bytes into the buffer.
+    ///
+    /// Contract:
+    ///   - Negative length is a no-op.
+    ///   - If data is nullptr, the length field is set but no bytes are written
+    ///     (null-to-empty coercion). This avoids dereferencing a null pointer.
+    ///   - If length is zero, no bytes are written regardless of data.
     void set_error_message(const char* data, i32 length) noexcept
     {
+        if (length < 0) return;
+        if (offset_ < 0 || buffer_.capacity() < offset_ || buffer_.capacity() - offset_ < ERROR_MESSAGE_OFFSET) return;
+        if (length > buffer_.capacity() - offset_ - ERROR_MESSAGE_OFFSET) return;
         set_error_message_length(length);
-        buffer_.put_bytes(offset_ + ERROR_MESSAGE_OFFSET, data, length);
+        if (data != nullptr && length > 0)
+            buffer_.put_bytes(offset_ + ERROR_MESSAGE_OFFSET, data, length);
     }
 
     /// Total byte length given the current error_message_length().
     [[nodiscard]] i32 length() const noexcept
     {
-        return ERROR_MESSAGE_OFFSET + error_message_length();
+        const i32 len = error_message_length();
+        if (len < 0) return -1;
+        const i64 result = static_cast<i64>(ERROR_MESSAGE_OFFSET) + len;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
+    }
+
+    /// Compute the total byte length for a given error message string length.
+    [[nodiscard]] static i32 compute_length(i32 error_message_length) noexcept
+    {
+        if (error_message_length < 0) return -1;
+        const i64 result = static_cast<i64>(ERROR_MESSAGE_OFFSET) + error_message_length;
+        if (result > std::numeric_limits<i32>::max()) return -1;
+        return static_cast<i32>(result);
     }
 
     [[nodiscard]] concurrent::UnsafeBuffer& buffer() noexcept { return buffer_; }

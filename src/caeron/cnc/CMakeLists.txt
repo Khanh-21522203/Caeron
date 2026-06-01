@@ -1,6 +1,4 @@
 add_library(caeron_cnc STATIC
-    cnc_file_descriptor.cpp
-    log_buffers.cpp
     mapped_log_buffers_factory.cpp
 )
 target_include_directories(caeron_cnc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../..)

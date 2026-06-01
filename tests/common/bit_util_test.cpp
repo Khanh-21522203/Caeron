@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
+
 using namespace caeron;
 
 TEST(BitUtil, IsPowerOfTwo)
@@ -33,6 +35,20 @@ TEST(BitUtil, Align)
 TEST(BitUtil, AlignInvalidAlignment)
 {
     EXPECT_THROW((void)align(1, 3), std::invalid_argument);
+}
+
+TEST(BitUtil, AlignOverflowThrows)
+{
+    EXPECT_THROW((void)align(std::numeric_limits<i32>::max(), 4), std::overflow_error);
+    EXPECT_THROW((void)align(std::numeric_limits<i32>::max() - 1, 4), std::overflow_error);
+    EXPECT_THROW((void)align(std::numeric_limits<i32>::max() - 2, 4), std::overflow_error);
+    EXPECT_THROW((void)align(std::numeric_limits<i32>::max(), 8), std::overflow_error);
+}
+
+TEST(BitUtil, AlignNearMaxDoesNotThrow)
+{
+    // Values just under the overflow boundary should work
+    EXPECT_EQ(align(std::numeric_limits<i32>::max() - 4, 4), std::numeric_limits<i32>::max() - 3);
 }
 
 TEST(BitUtil, NextPowerOfTwo)

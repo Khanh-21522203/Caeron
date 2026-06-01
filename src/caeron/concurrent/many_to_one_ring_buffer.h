@@ -43,6 +43,14 @@ public:
     /// Capacity of the data region (excluding header).
     [[nodiscard]] i32 capacity() const noexcept { return capacity_; }
 
+    /// Consumer heartbeat time. Returns the current head position of the ring
+    /// buffer, which advances as the consumer reads messages. This can be used
+    /// as a proxy for consumer liveness.
+    [[nodiscard]] i64 consumer_heartbeat_time() const noexcept
+    {
+        return buffer_.get_i64_ordered(HEAD_POSITION_OFFSET);
+    }
+
     /// Approximate number of bytes currently in the ring buffer.
     [[nodiscard]] i32 size() const noexcept
     {
