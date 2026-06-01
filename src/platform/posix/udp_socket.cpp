@@ -43,7 +43,8 @@ void UdpSocket::bind(const std::string& address, u16 port)
     struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    ::inet_pton(AF_INET, address.c_str(), &addr.sin_addr);
+    if (::inet_pton(AF_INET, address.c_str(), &addr.sin_addr) <= 0)
+        throw std::runtime_error("Invalid address for bind: " + address);
 
     if (::bind(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
         throw std::runtime_error("Failed to bind UDP socket");
@@ -54,7 +55,8 @@ void UdpSocket::connect(const std::string& address, u16 port)
     struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    ::inet_pton(AF_INET, address.c_str(), &addr.sin_addr);
+    if (::inet_pton(AF_INET, address.c_str(), &addr.sin_addr) <= 0)
+        throw std::runtime_error("Invalid address for connect: " + address);
 
     if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
         throw std::runtime_error("Failed to connect UDP socket");
@@ -66,10 +68,17 @@ i32 UdpSocket::send_to(const void* data, i32 length,
     struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    ::inet_pton(AF_INET, address.c_str(), &addr.sin_addr);
+    if (::inet_pton(AF_INET, address.c_str(), &addr.sin_addr) <= 0)
+        throw std::runtime_error("Invalid address for send_to: " + address);
 
     auto sent = ::sendto(fd_, data, static_cast<size_t>(length), 0,
                          reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+    if (sent < 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            return 0;
+        throw std::runtime_error("sendto failed: " + std::string(std::strerror(errno)));
+    }
     return static_cast<i32>(sent);
 }
 
@@ -82,7 +91,11 @@ i32 UdpSocket::receive_from(void* buffer, i32 max_length,
     auto received = ::recvfrom(fd_, buffer, static_cast<size_t>(max_length), 0,
                                reinterpret_cast<struct sockaddr*>(&addr), &addr_len);
     if (received < 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            return 0;
         return static_cast<i32>(received);
+    }
 
     char ip[INET_ADDRSTRLEN];
     ::inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
@@ -160,6 +173,12 @@ i32 UdpSocket::send_mmsg(const std::vector<SendMsg>& messages)
 
     auto sent = ::sendmmsg(fd_, mmsghdrs.data(),
         static_cast<unsigned>(messages.size()), 0);
+    if (sent < 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            return 0;
+        throw std::runtime_error("sendmmsg failed: " + std::string(std::strerror(errno)));
+    }
     return sent;
 }
 
@@ -189,7 +208,11 @@ i32 UdpSocket::recv_mmsg(std::vector<RecvMsg>& messages)
                                static_cast<unsigned>(messages.size()),
                                MSG_DONTWAIT, nullptr);
     if (received < 0)
-        return received;
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            return 0;
+        return -1;
+    }
 
     for (ssize_t i = 0; i < received; ++i)
     {

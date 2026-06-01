@@ -144,3 +144,51 @@ TEST(UdpSocket, DoubleCloseDoesNotCrash)
     sock.close();  // should be safe
     EXPECT_FALSE(sock.is_open());
 }
+
+// HIGH-6: Verify inet_pton failures are caught
+TEST(UdpSocket, BindInvalidAddressThrows)
+{
+    UdpSocket sock;
+    EXPECT_THROW(sock.bind("not_an_ip", 1234), std::runtime_error);
+}
+
+TEST(UdpSocket, ConnectInvalidAddressThrows)
+{
+    UdpSocket sock;
+    EXPECT_THROW(sock.connect("invalid_addr", 1234), std::runtime_error);
+}
+
+TEST(UdpSocket, SendToInvalidAddressThrows)
+{
+    UdpSocket sock;
+    sock.bind("127.0.0.1", 0);
+    const char* msg = "test";
+    EXPECT_THROW((void)sock.send_to(msg, 4, "not_valid", 1234), std::runtime_error);
+}
+
+// HIGH-5: Verify recv_mmsg returns 0 on empty socket (EAGAIN handled)
+TEST(UdpSocket, RecvMmsgHandlesEAGAIN)
+{
+    UdpSocket sock;
+    sock.bind("127.0.0.1", 0);
+
+    std::vector<std::byte> buf(64);
+    std::vector<RecvMsg> msgs = {
+        {buf.data(), 64, 0, "", 0},
+    };
+
+    // No data available -- should return 0, not -1
+    auto result = sock.recv_mmsg(msgs);
+    EXPECT_GE(result, 0);
+}
+
+// Verify send_mmsg handles empty vector
+TEST(UdpSocket, SendMmsgEmptyVector)
+{
+    UdpSocket sock;
+    sock.bind("127.0.0.1", 0);
+
+    std::vector<SendMsg> msgs;
+    auto sent = sock.send_mmsg(msgs);
+    EXPECT_EQ(sent, 0);
+}

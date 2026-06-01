@@ -6,3 +6,4 @@ add_subdirectory(logbuffer)
 add_subdirectory(cnc)
 # add_subdirectory(driver)     # populated after driver is written
 add_subdirectory(platform)
+add_subdirectory(media)

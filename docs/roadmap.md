@@ -143,27 +143,27 @@ Implement the client-driver IPC protocol.
 
 ---
 
-## Phase 6: Network Media Layer
+## Phase 6: Network Media Layer ✅
 
-The transport abstraction layer above raw sockets. **22 Java classes.**
+The transport abstraction layer above raw sockets. **20 C++ headers, 173 tests.**
 
 | Step | Description | Java Source | Status |
 |------|-------------|-------------|--------|
-| 6.1 | `UdpChannel`: parse channel URI (`aeron:udp?endpoint=host:port`), resolve addresses, multicast/interface config | `media/UdpChannel.java` | ⬜ |
-| 6.2 | `UdpChannelTransport`: base transport with send/receive buffers, socket lifecycle | `media/UdpChannelTransport.java` | ⬜ |
-| 6.3 | `SendChannelEndpoint`: outbound transport — socket, destinations, send logic | `media/SendChannelEndpoint.java` | ⬜ |
-| 6.4 | `ReceiveChannelEndpoint`: inbound transport — socket, sources, receive dispatch | `media/ReceiveChannelEndpoint.java` | ⬜ |
-| 6.5 | `DataTransportPoller`: poll for incoming DATA/SETUP frames, dispatch to Receiver | `media/DataTransportPoller.java` | ⬜ |
-| 6.6 | `ControlTransportPoller`: poll for incoming SM/NAK/RTT frames, dispatch to Sender | `media/ControlTransportPoller.java` | ⬜ |
-| 6.7 | `UdpTransportPoller`: low-level epoll-based UDP poller | `media/UdpTransportPoller.java` | ⬜ |
-| 6.8 | `ReceiveDestinationTransport`: multicast destination management | `media/ReceiveDestinationTransport.java` | ⬜ |
-| 6.9 | `MultiRcvDestination`: multi-destination receive (MDC) | `media/MultiRcvDestination.java` | ⬜ |
-| 6.10 | `ImageConnection`: per-source connection tracking for received images | `media/ImageConnection.java` | ⬜ |
-| 6.11 | `SocketAddressParser`: parse `host:port` strings, IPv4/IPv6 support | `media/SocketAddressParser.java` | ⬜ |
-| 6.12 | `NetworkUtil`: interface enumeration, multicast interface selection | `media/NetworkUtil.java` | ⬜ |
-| 6.13 | `PortManager` / `WildcardPortManager`: dynamic port allocation for MDC | `media/PortManager.java`, `WildcardPortManager.java` | ⬜ |
-| 6.14 | `InterfaceSearchAddress` / `ResolvedInterface` / `UnresolvedInterface` / `NamedInterface`: interface resolution | `media/*.java` | ⬜ |
-| 6.15 | Media layer tests | — | ⬜ |
+| 6.1 | `UdpChannel`: parse channel URI (`aeron:udp?endpoint=host:port`), resolve addresses, multicast/interface config | `media/UdpChannel.java` | ✅ |
+| 6.2 | `UdpChannelTransport`: base transport with send/receive buffers, socket lifecycle | `media/UdpChannelTransport.java` | ✅ |
+| 6.3 | `SendChannelEndpoint`: outbound transport — socket, destinations, send logic | `media/SendChannelEndpoint.java` | ✅ |
+| 6.4 | `ReceiveChannelEndpoint`: inbound transport — socket, sources, receive dispatch | `media/ReceiveChannelEndpoint.java` | ✅ |
+| 6.5 | `DataTransportPoller`: poll for incoming DATA/SETUP frames, dispatch to Receiver | `media/DataTransportPoller.java` | ✅ |
+| 6.6 | `ControlTransportPoller`: poll for incoming SM/NAK/RTT frames, dispatch to Sender | `media/ControlTransportPoller.java` | ✅ |
+| 6.7 | `UdpTransportPoller`: low-level epoll-based UDP poller | `media/UdpTransportPoller.java` | ✅ |
+| 6.8 | `ReceiveDestinationTransport`: multicast destination management | `media/ReceiveDestinationTransport.java` | ✅ |
+| 6.9 | `MultiRcvDestination`: multi-destination receive (MDC) | `media/MultiRcvDestination.java` | ✅ |
+| 6.10 | `ImageConnection`: per-source connection tracking for received images | `media/ImageConnection.java` | ✅ |
+| 6.11 | `SocketAddressParser`: parse `host:port` strings, IPv4/IPv6 support | `media/SocketAddressParser.java` | ✅ |
+| 6.12 | `NetworkUtil`: interface enumeration, multicast interface selection | `media/NetworkUtil.java` | ✅ |
+| 6.13 | `PortManager` / `WildcardPortManager`: dynamic port allocation for MDC | `media/PortManager.java`, `WildcardPortManager.java` | ✅ |
+| 6.14 | `InterfaceSearchAddress` / `ResolvedInterface` / `UnresolvedInterface` / `NamedInterface`: interface resolution | `media/*.java` | ✅ |
+| 6.15 | Media layer tests | — | ✅ |
 
 ---
 
